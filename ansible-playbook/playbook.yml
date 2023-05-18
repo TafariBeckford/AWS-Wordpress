@@ -1,0 +1,156 @@
+---
+- name: Deploy WordPress
+  hosts: all
+  become: true
+  vars:
+    region: us-east-1
+    ssm_prefix: /A4L/Wordpress
+  tasks:
+    - name: Export ENV from parameter store
+      block:
+        - name: Get DB Password
+          shell: "aws ssm get-parameter --region {{ region }} --name {{ ssm_prefix }}/DBPassword \
+                  --with-decryption --query Parameter.Value | sed -e 's/^\"//' -e 's/\"$//'"
+          register: db_password
+        - name: Get DB User
+          shell: "aws ssm get-parameter --region {{ region }} --name {{ ssm_prefix }}/DBUser \
+                  --query Parameter.Value | sed -e 's/^\"//' -e 's/\"$//'"
+          register: db_user
+        - name: Get DB Name
+          shell: "aws ssm get-parameter --region {{ region }} --name {{ ssm_prefix }}/DBName \
+                  --query Parameter.Value | sed -e 's/^\"//' -e 's/\"$//'"
+          register: db_name
+        - name: Get DB Endpoint
+          shell: "aws ssm get-parameter --region {{ region }} --name {{ ssm_prefix }}/DBEndpoint \
+                  --query Parameter.Value | sed -e 's/^\"//' -e 's/\"$//'"
+          register: db_endpoint
+        - name: Get EFS FSID
+          shell: "aws ssm get-parameter --region {{ region }} --name {{ ssm_prefix }}/EFSFSID \
+                  --query Parameter.Value | sed -e 's/^\"//' -e 's/\"$//'"
+          register: efs_fsid
+      tags:
+        - env_vars
+        - db
+
+
+    - name: Install required packages
+      yum:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - mysql
+        - amazon-efs-utils
+        - httpd
+      become: true
+      tags:
+        - packages
+
+    - name: Create WordPress database
+      block:
+        - name: Create database setup script
+          copy:
+            content: "CREATE DATABASE IF NOT EXISTS {{ db_name.stdout }};"
+            dest: /tmp/db.setup
+          tags:
+            - db
+        - name: Execute database setup script
+          shell: "mysql --host={{ db_endpoint.stdout }} -P 3306 --user={{ db_user.stdout }} --password={{ db_password.stdout }} < /tmp/db.setup"
+          tags:
+            - db
+        - name: Remove database setup script
+          file:
+            path: /tmp/db.setup
+            state: absent
+          tags:
+            - db
+
+    - name: Download and extract WordPress
+      block:
+        - name: Download WordPress
+          get_url:
+            url: https://wordpress.org/latest.tar.gz
+            dest: /home/ec2-user
+          tags:
+            - wordpress
+        - name: Extract WordPress
+          unarchive:
+            src: /home/ec2-user/latest.tar.gz
+            dest: /home/ec2-user/wordpress
+            remote_src: yes
+          tags:
+            - wordpress
+
+    - name: Update WordPress configuration file
+      lineinfile:
+        path: /home/ec2-user/wordpress/wp-config.php
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+      become: true
+      with_items:
+        - { regexp: "^(.*'database_name_here'.*)$", line: "\\1'{{ db_name }}');" }
+        - { regexp: "^(.*'username_here'.*)$", line: "\\1'{{ db_user }}');" }
+        - { regexp: "^(.*'password_here'.*)$", line: "\\1'{{ db_password }}');" }
+        - { regexp: "^(.*'localhost'.*)$", line: "\\1'{{ db_endpoint }}');" }
+
+    - name: Copy WordPress files to httpd root directory
+      copy:
+         src: /home/ec2-user/wordpress/
+         dest: /var/www/html/
+         remote_src: yes
+      become: true
+
+    - name: Restart httpd service
+      service:
+        name: httpd
+        state: restarted
+
+    - name: Move WP-Content to temporary folder
+      command: mv /var/www/html/wp_content  /tmp
+      args:
+        creates: /tmp/wp-content
+      become: true
+
+
+    - name: Create and Mount folder to EFS
+      block:
+        - name: Create directory
+          file:
+            path: /var/www/html/tmp/
+            state: directory
+
+        - name: Add EFS mount to /etc/fstab
+          lineinfile:
+            path: /etc/fstab
+            line: "{{ efs_fsid }}:/ /var/www/html/wp-content efs _netdev,tls,iam 0 0"
+            state: present
+            insertafter: EOF
+
+        - name: Mount EFS filesystem
+          mount:
+            src: "{{ efs_fsid }}:/"
+            path: /var/www/html/wp-content
+            fstype: efs
+            opts: _netdev,tls,iam
+            state: mounted
+            dump: 0
+            passno: 0
+
+    - name: Move WP-Content
+      block:
+        - name: Copy files from /tmp/wp-content to /var/www/html/wp-content
+          copy:
+            src: /tmp/wp-content/
+            dest: /var/www/html/wp-content/
+            remote_src: yes
+
+        - name: Remove temporary wp-content directory
+          file:
+            path: /tmp/wp-content
+            state: absent
+
+        - name: Change ownership of /var/www/
+          file:
+            path: /var/www/
+            owner: ec2-user
+            group: apache
+            recurse: yes

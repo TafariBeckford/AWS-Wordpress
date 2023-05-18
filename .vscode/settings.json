@@ -1,0 +1,6 @@
+{
+    "ansible.lightspeed.enabled": true,
+    "ansible.executionEnvironment.volumeMounts": [
+        
+    ]
+}
