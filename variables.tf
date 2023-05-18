@@ -5,14 +5,14 @@ variable "cidr_block" {
 
 variable "password" {
   sensitive = true
-  type = string 
-  default = "admin12345"
+  type      = string
+  default   = "admin12345"
 }
 
 variable "instance_type" {
-type = string
-default = "t3.micro"
-  
+  type    = string
+  default = "t3.micro"
+
 }
 
 locals {
@@ -22,13 +22,13 @@ locals {
   USERDATA
 }
 
-variable "iam_instance_profile_name"{
-  type = string
-  default =""
+variable "iam_instance_profile_name" {
+  type    = string
+  default = ""
 }
 
 variable "name" {
-  type = string
+  type    = string
   default = "wordpress-asg"
-  
+
 }

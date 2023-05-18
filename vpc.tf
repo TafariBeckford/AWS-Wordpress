@@ -11,7 +11,7 @@ module "wordpress-vpc" {
   database_subnet_names = ["db-a", "db-b", "db-c"]
   private_subnet_names  = ["app-a", "app-b", "app-c"]
   public_subnet_names   = ["pub-a", "pub-b", "pub-c"]
-  enable_dns_hostnames = true
+  enable_dns_hostnames  = true
 
   tags = {
     Terraform   = "true"

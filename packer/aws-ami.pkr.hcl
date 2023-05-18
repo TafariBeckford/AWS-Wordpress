@@ -12,6 +12,8 @@ source "amazon-ebs" "ubuntu" {
   iam_instance_profile = "PackerIamRole"
   vpc_id               = "vpc-0dbba48a30e9f0f2e"
 
+  
+
 
   tags = {
     "Name" = "Wordpress"

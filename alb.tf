@@ -6,9 +6,9 @@ module "alb" {
 
   load_balancer_type = "application"
 
-  vpc_id             = module.wordpress-vpc.vpc_id
-  subnets            = module.wordpress-vpc.public_subnets
-  security_groups    = [module.loadBalancer_sg.security_group_id]
+  vpc_id          = module.wordpress-vpc.vpc_id
+  subnets         = module.wordpress-vpc.public_subnets
+  security_groups = [module.loadBalancer_sg.security_group_id]
 
 
   target_groups = [
@@ -19,10 +19,10 @@ module "alb" {
       target_type      = "instance"
     }
   ]
-   http_tcp_listeners = [
+  http_tcp_listeners = [
     {
-      port               = 80
-      protocol           = "HTTP"
+      port     = 80
+      protocol = "HTTP"
     }
   ]
 }

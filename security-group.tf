@@ -7,7 +7,7 @@ module "wordpress_sg" {
 
   egress_cidr_blocks = ["0.0.0.0/0"]
   egress_rules       = ["all-all"]
-  
+
 
   computed_ingress_with_cidr_blocks = [
     {
@@ -15,8 +15,8 @@ module "wordpress_sg" {
       cidr_blocks = "0.0.0.0/0"
     },
     {
-     rule = "ssh-tcp"
-     cidr_blocks = "${chomp(data.http.myip.body)}/32"
+      rule        = "ssh-tcp"
+      cidr_blocks = "${chomp(data.http.myip.body)}/32"
     }
   ]
   number_of_computed_ingress_with_cidr_blocks = 2
